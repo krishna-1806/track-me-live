@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TrackMe Live 🌍</title>
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/684/684908.png" />
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <!-- Routing Machine CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #f4f4f4;
+    }
+
+    header {
+      background: linear-gradient(90deg, #2b6cb0, #4a90e2);
+      color: white;
+      text-align: center;
+      padding: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+
+    header img {
+      width: 35px;
+      height: 35px;
+    }
+
+    #map {
+      height: 85vh;
+      width: 100%;
+    }
+
+    .search-box {
+      position: absolute;
+      top: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      display: flex;
+      gap: 6px;
+      background: white;
+      padding: 8px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+
+    .search-box input {
+      padding: 7px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      width: 180px;
+      font-size: 14px;
+    }
+
+    .search-box button {
+      padding: 7px 12px;
+      background: #2b6cb0;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    .search-box button:hover {
+      background: #1a4e8a;
+    }
+
+    .leaflet-top.leaflet-left {
+      margin-top: 130px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="https://cdn-icons-png.flaticon.com/512/684/684908.png" alt="Logo">
+    <span>TrackMe Live</span>
+  </header>
+
+  <div class="search-box">
+    <input type="text" id="start" placeholder="Start location" />
+    <input type="text" id="end" placeholder="Destination" />
+    <button onclick="getRoute()">Get Route</button>
+    <button onclick="trackUser()">📍 Start Tracking</button>
+  </div>
+
+  <div id="map"></div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+
+  <script>
+    var streetMap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    });
+
+    var satelliteMap = L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      { attribution: 'Tiles © Esri — Source: Esri, Earthstar Geographics' }
+    );
+
+    var map = L.map('map', {
+      center: [17.3850, 78.4867],
+      zoom: 13,
+      layers: [streetMap]
+    });
+
+    var baseMaps = {
+      "🗺️ Street Map": streetMap,
+      "🛰️ Satellite View": satelliteMap
+    };
+    L.control.layers(baseMaps).addTo(map);
+
+    map.on('click', function (e) {
+      L.popup()
+        .setLatLng(e.latlng)
+        .setContent("📍 " + e.latlng.lat.toFixed(4) + ", " + e.latlng.lng.toFixed(4))
+        .openOn(map);
+    });
+
+    var pois = [
+      { name: "Restaurant A", lat: 17.389, lon: 78.478, type: "🍴 Restaurant" },
+      { name: "Hospital B", lat: 17.392, lon: 78.482, type: "🏥 Hospital" },
+      { name: "Tourist Spot C", lat: 17.375, lon: 78.486, type: "🏛️ Tourist Spot" }
+    ];
+
+    pois.forEach(poi => {
+      L.marker([poi.lat, poi.lon])
+        .addTo(map)
+        .bindPopup(`<b>${poi.name}</b><br>${poi.type}`);
+    });
+
+    var control;
+
+    async function geocode(query) {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      return data.length > 0 ? data[0] : null;
+    }
+
+    async function getRoute() {
+      const start = document.getElementById("start").value;
+      const end = document.getElementById("end").value;
+      if (!start || !end) return alert("Enter both start and destination");
+
+      const startCoords = await geocode(start);
+      const endCoords = await geocode(end);
+
+      if (!startCoords || !endCoords) return alert("Location not found");
+
+      if (control) map.removeControl(control);
+
+      control = L.Routing.control({
+        waypoints: [
+          L.latLng(startCoords.lat, startCoords.lon),
+          L.latLng(endCoords.lat, endCoords.lon)
+        ],
+        routeWhileDragging: true
+      }).addTo(map);
+    }
+
+    let userMarker, accuracyCircle;
+    function trackUser() {
+      if (!navigator.geolocation) {
+        alert("Geolocation not supported by your browser.");
+        return;
+      }
+
+      navigator.geolocation.watchPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
+          const accuracy = pos.coords.accuracy;
+
+          if (userMarker) {
+            userMarker.setLatLng([lat, lon]);
+            accuracyCircle.setLatLng([lat, lon]).setRadius(accuracy);
+          } else {
+            userMarker = L.marker([lat, lon], { title: "You" }).addTo(map)
+              .bindPopup("📍 You are here");
+            accuracyCircle = L.circle([lat, lon], { radius: accuracy }).addTo(map);
+          }
+
+          map.setView([lat, lon], 16);
+        },
+        (err) => {
+          alert("Unable to get your location: " + err.message);
+        },
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+      );
+    }
+  </script>
+</body>
+</html>
