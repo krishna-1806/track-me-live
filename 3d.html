@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>TrackMe Live – 3D Map</title>
+  <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/684/684908.png" />
+  <link href="https://unpkg.com/maplibre-gl@3.2.0/dist/maplibre-gl.css" rel="stylesheet" />
+  <style>
+    html,body{margin:0;height:100%;overflow:hidden;font-family:"Segoe UI",Arial,sans-serif;}
+    #map{position:absolute;top:0;bottom:0;width:100%;}
+    .topbar{
+      position:absolute;top:10px;left:50%;transform:translateX(-50%);
+      background:rgba(43,108,176,.9);color:#fff;padding:8px 18px;border-radius:8px;
+      font-weight:600;z-index:10;text-align:center;
+    }
+    .backbtn{
+      position:absolute;top:10px;left:10px;
+      background:#fff;color:#2b6cb0;border:none;border-radius:6px;
+      padding:6px 12px;font-weight:600;cursor:pointer;z-index:10;
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">🌍 TrackMe Live – 3D Mode</div>
+  <button class="backbtn" onclick="window.location.href='index.html'">← Back</button>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/maplibre-gl@3.2.0/dist/maplibre-gl.js"></script>
+  <script>
+    // Initialize 3D map
+    const map = new maplibregl.Map({
+      container:"map",
+      style:"https://demotiles.maplibre.org/style.json", // Free MapLibre style
+      center:[78.4867,17.3850], // Hyderabad
+      zoom:14,
+      pitch:60,   // Tilt
+      bearing:-20,// Rotation
+      antialias:true
+    });
+
+    // Add controls
+    map.addControl(new maplibregl.NavigationControl());
+
+    // Add 3D buildings after load
+    map.on("load",()=>{
+      const layers = map.getStyle().layers;
+      const labelLayerId = layers.find(
+        l=>l.type==="symbol" && l.layout["text-field"]
+      ).id;
+
+      map.addLayer({
+        id:"3d-buildings",
+        source:"openmaptiles",
+        "source-layer":"building",
+        filter:["==","extrude","true"],
+        type:"fill-extrusion",
+        minzoom:15,
+        paint:{
+          "fill-extrusion-color":"#aaa",
+          "fill-extrusion-height":[
+            "interpolate",["linear"],["zoom"],
+            15,0,15.05,["get","height"]
+          ],
+          "fill-extrusion-base":["get","min_height"],
+          "fill-extrusion-opacity":0.8
+        }
+      },labelLayerId);
+    });
+  </script>
+</body>
+</html>
